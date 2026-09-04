@@ -4,7 +4,13 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Runtime: Supabase's transaction pooler (port 6543, pgbouncer=true) — fast,
+  // stateless, IPv4-reachable from hosts without IPv6 egress.
+  url       = env("DATABASE_URL")
+  // Migrations only: the transaction pooler can't hold the advisory lock or
+  // multi-statement DDL that `prisma migrate` needs, so this points at the
+  // session pooler (port 5432) instead. Never used at request time.
+  directUrl = env("DIRECT_URL")
 }
 
 /// An anonymous browser session. `userId` is reserved so real accounts can be
