@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// An anonymous browser session. `userId` is reserved so real accounts can be
+/// added later without migrating conversation ownership.
+model Visitor {
+  id         String   @id @default(uuid())
+  userId     String?
+  userAgent  String?
+  ipHash     String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now()) @updatedAt
+
+  conversations Conversation[]
+
+  @@index([userId])
+}
+
+/// One chat thread. `id` is the UUID that appears in the website URL AND the
+/// `session_id` sent to the agent's /chat endpoint — the agent keys its own
+/// memory on it, so no separate mapping column is needed.
+model Conversation {
+  id            String    @id @default(uuid())
+  visitorId     String
+  title         String?
+  /// Mirrors the latest agent-reported onboarding profile (gpa, completedHours,
+  /// major, completedCourses) — a live snapshot for quick display; the
+  /// per-turn history of it lives on Message.profile below.
+  profile             Json?
+  onboardingComplete  Boolean   @default(false)
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+  lastMessageAt DateTime  @default(now())
+  deletedAt     DateTime?
+
+  visitor  Visitor   @relation(fields: [visitorId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([visitorId, lastMessageAt(sort: Desc)])
+}
+
+enum MessageRole {
+  user
+  assistant
+  system
+}
+
+enum MessageStatus {
+  pending
+  streaming
+  complete
+  error
+  cancelled
+}
+
+model Message {
+  id             String        @id @default(uuid())
+  conversationId String
+  seq            Int
+  role           MessageRole
+  status         MessageStatus @default(complete)
+  content        String        @default("")
+  errorCode      String?
+  errorMessage   String?
+  /// Agent's rewrite of a follow-up into a standalone question (assistant turns only).
+  standaloneQuestion String?
+  /// Agent's cited source ids, e.g. ["course_AI.499"] (assistant turns only).
+  sources        Json?
+  /// Snapshot of the agent's onboarding profile as of this turn (assistant turns
+  /// only) — an audit trail of gpa/completedHours/major/completedCourses over time.
+  profile             Json?
+  onboardingComplete  Boolean?
+  promptTokens   Int?
+  outputTokens   Int?
+  latencyMs      Int?
+  agentRunId     String?
+  createdAt      DateTime      @default(now())
+  completedAt    DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, seq])
+  @@index([conversationId, createdAt])
+  @@index([status])
+}
