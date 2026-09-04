@@ -179,7 +179,13 @@ export async function streamRoute(req: Request, res: Response): Promise<void> {
       }
     }
   } catch (err) {
-    logger.error({ err, messageId: message.id }, 'sse stream failed');
+    // Headers are already sent by this point, so this IS the record of the
+    // failure — nothing propagates to errorHandler.ts from here. Keep it as
+    // self-contained as that one: reqId + method + url + the real error.
+    logger.error(
+      { err, reqId: req.id, method: req.method, url: req.originalUrl, messageId: message.id },
+      'sse stream failed',
+    );
     sse.send('error', { code: 'internal', message: 'The stream ended unexpectedly.' });
   } finally {
     sse.close();
