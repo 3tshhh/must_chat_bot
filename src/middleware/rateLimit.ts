@@ -1,13 +1,30 @@
-import rateLimit, { type Options } from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
+import rateLimitImport, {
+  type Options,
+  type RateLimitRequestHandler,
+  type Store,
+} from 'express-rate-limit';
+import RedisStoreImport, {
+  type Options as RedisStoreOptions,
+} from 'rate-limit-redis';
 import { env } from '../config/env.js';
 import { redis } from '../redis/client.js';
+
+// express-rate-limit and rate-limit-redis ship dual ESM/CJS builds. Some
+// TypeScript resolution setups (notably the Vercel build) bind the module
+// namespace instead of the default export, so `rateLimit(...)` / `new RedisStore(...)`
+// are seen as non-callable. Both are correct at runtime; normalize the types here.
+const rateLimit = rateLimitImport as unknown as (
+  options?: Partial<Options>,
+) => RateLimitRequestHandler;
+const RedisStore = RedisStoreImport as unknown as new (
+  options: Partial<RedisStoreOptions>,
+) => Store;
 
 /**
  * Redis-backed so the limit is shared across instances rather than per-process.
  * Keyed on the anonymous visitor, falling back to IP before the session exists.
  */
-function make(prefix: string, windowMs: number, limit: number): ReturnType<typeof rateLimit> {
+function make(prefix: string, windowMs: number, limit: number): RateLimitRequestHandler {
   const options: Partial<Options> = {
     windowMs,
     limit,
