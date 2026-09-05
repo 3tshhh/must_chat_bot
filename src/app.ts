@@ -1,20 +1,12 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import express, { type Express, type RequestHandler } from 'express';
-import helmetImport, { type HelmetOptions } from 'helmet';
+import express, { type Express } from 'express';
 import { env } from './config/env.js';
 import { httpLogger } from './lib/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { visitorSession } from './middleware/visitorSession.js';
 import { conversationsRouter } from './routes/conversations.routes.js';
 import { healthRouter } from './routes/health.routes.js';
-
-// helmet is always a callable function at runtime, but under NodeNext resolution
-// some TypeScript setups (e.g. the Vercel build) resolve its bundled types to a
-// non-callable namespace shape. Normalize to the function it actually is.
-const helmet = helmetImport as unknown as (
-  options?: Readonly<HelmetOptions>,
-) => RequestHandler;
 
 export function createApp(): Express {
   const app = express();
@@ -24,13 +16,16 @@ export function createApp(): Express {
   app.disable('x-powered-by');
 
   app.use(httpLogger);
-  app.use(
-    helmet({
-      // The API serves JSON and SSE, never HTML, so CSP has nothing to protect.
-      contentSecurityPolicy: false,
-      crossOriginResourcePolicy: { policy: 'same-site' },
-    }),
-  );
+
+  // Minimal security headers. The API serves JSON and SSE, never HTML, so there
+  // is no CSP to set; this covers what helmet gave us with CSP disabled.
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    next();
+  });
+
   app.use(
     cors({
       origin: env.corsOrigins,
