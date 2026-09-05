@@ -1,13 +1,20 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import express, { type Express } from 'express';
-import helmet from 'helmet';
+import express, { type Express, type RequestHandler } from 'express';
+import helmetImport, { type HelmetOptions } from 'helmet';
 import { env } from './config/env.js';
 import { httpLogger } from './lib/logger.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { visitorSession } from './middleware/visitorSession.js';
 import { conversationsRouter } from './routes/conversations.routes.js';
 import { healthRouter } from './routes/health.routes.js';
+
+// helmet is always a callable function at runtime, but under NodeNext resolution
+// some TypeScript setups (e.g. the Vercel build) resolve its bundled types to a
+// non-callable namespace shape. Normalize to the function it actually is.
+const helmet = helmetImport as unknown as (
+  options?: Readonly<HelmetOptions>,
+) => RequestHandler;
 
 export function createApp(): Express {
   const app = express();
